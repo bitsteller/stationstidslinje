@@ -1,0 +1,522 @@
+<?xml version="1.0" encoding="utf-8" ?>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>Stationstidslinje</title>
+    <link rel="stylesheet" href="http://code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css">
+    <link rel="stylesheet" href="./dark.css">
+
+    <script src="http://code.jquery.com/jquery-1.9.1.js"></script>
+    <script src="http://code.jquery.com/ui/1.10.3/jquery-ui.js"></script>
+    <script type="text/javascript">
+    	var platforms = [];
+        var trains = {};
+        var lastRequest = new Date();
+        var updateStarted = true;
+        var requestsLeft = 150;
+
+        var Stations = new Array();
+        $(document).ready(function () {
+            $.support.cors = true; // Enable Cross domain requests
+            try {
+                $.ajaxSetup({
+                    url: "http://api.trafikinfo.trafikverket.se/v1/data.json",
+                    error: function (msg) {
+                        if (msg.statusText == "abort") return;
+                        alert("Request failed: " + msg.statusText + "\n" + msg.responseText);
+                    }
+                });
+            }
+            catch (e) { alert("Ett fel uppstod vid initialisering."); }
+            // Create an ajax loading indicator
+            var loadingTimer;
+            $("#loader").hide();
+            $(document).ajaxStart(function () {
+                loadingTimer = setTimeout(function () {
+                    $("#loader").show();
+                }, 200);
+            }).ajaxStop(function () {
+                clearTimeout(loadingTimer);
+                $("#loader").hide();
+            });
+            // Load stations
+            PreloadTrainStations();
+        });
+
+        function PreloadTrainStations() {
+            // Request to load all stations
+            var xmlRequest = "<REQUEST>" +
+                                // Use your valid authenticationkey
+                                "<LOGIN authenticationkey='dd9f2771eb9b4ddca65caae7140bb6a1' />" +
+                                "<QUERY objecttype='TrainStation'>" +
+                                    "<FILTER/>" +
+                                    "<INCLUDE>Prognosticated</INCLUDE>" +
+                                    "<INCLUDE>AdvertisedLocationName</INCLUDE>" +
+                                    "<INCLUDE>LocationSignature</INCLUDE>" +
+                                    "<INCLUDE>PlatformLine</INCLUDE>" +
+                                "</QUERY>" +
+                             "</REQUEST>";
+            $.ajax({
+                type: "POST",
+                contentType: "text/xml",
+                dataType: "json",
+                data: xmlRequest,
+                success: function (response) {
+                    if (response == null) return;
+                    try {
+                        var stationlist = [];
+                        $(response.RESPONSE.RESULT[0].TrainStation).each(function (iterator, item)
+                        {
+                            // Save a key/value list of stations
+                            Stations[item.LocationSignature] = item.AdvertisedLocationName;
+                            // Create an array to fill the search field autocomplete.
+                            if (item.Prognosticated == true)
+                                stationlist.push({ label: item.AdvertisedLocationName, value: item.LocationSignature, platforms: item.PlatformLine });
+                        });
+                        fillSearchWidget(stationlist);
+                    }
+                    catch (ex) { }
+                }
+            });
+        }
+
+        function fillSearchWidget(data) {
+            $("#station").val("");
+            $("#station").autocomplete({
+                // Make the autocomplete fill with matches that "starts with" only
+                source: function (request, response) {
+                    var matches = $.map(data, function (tag) {
+                        if (tag.label.toUpperCase().indexOf(request.term.toUpperCase()) === 0) {
+                            return {
+                                label: tag.label,
+                                value: tag.value,
+                                platforms: tag.platforms
+                            }
+                        }
+                    });
+                    response(matches);
+                },
+                select: function (event, ui) {
+                    var selectedObj = ui.item;
+                    $("#station").val(selectedObj.label);
+                    // Save selected stations signature
+                    $("#station").data("sign", selectedObj.value);
+                    platforms = selectedObj.platforms;
+                    return false;
+                },
+                focus: function (event, ui) {
+                    var selectedObj = ui.item;
+                    // Show station name in search field
+                    $("#station").val(selectedObj.label);
+                    return false;
+                }
+            });
+        }
+
+        function Search() {
+            requestsLeft = 200;
+            updateData();
+            update();
+            if (!updateStarted) {
+                setTimeout(update, 5000);
+            }
+        }
+
+
+        function updateData() {
+            var sign = $("#station").data("sign");
+            // Clear html table
+            $('#timeTableDeparture tr:not(:first)').remove();
+
+            // Request to load announcements for a station by its signature
+            var xmlRequest = "<REQUEST version='1.0'>" +
+                                "<LOGIN authenticationkey='dd9f2771eb9b4ddca65caae7140bb6a1' />" +
+                                "<QUERY objecttype='TrainAnnouncement' " +
+                                    "orderby='AdvertisedTimeAtLocation' >" +
+                                    "<FILTER>" +
+                                    "<AND>" +
+                                        "<OR>" +
+                                            "<AND>" +
+                                                "<GT name='AdvertisedTimeAtLocation' " +
+                                                            "value='$dateadd(-00:15:00)' />" +
+                                                "<LT name='AdvertisedTimeAtLocation' " +
+                                                            "value='$dateadd(6:00:00)' />" +
+                                            "</AND>" +
+                                            "<GT name='EstimatedTimeAtLocation' value='$dateadd(-00:15:00)' />" +
+                                        "</OR>" +
+                                        "<EQ name='LocationSignature' value='" + sign + "' />" +
+                                    "</AND>" +
+                                    "</FILTER>" +
+                                    // Just include wanted fields to reduce response size.
+                                    "<INCLUDE>ActivityType</INCLUDE>" +
+                                    "<INCLUDE>AdvertisedTimeAtLocation</INCLUDE>" +
+                                    "<INCLUDE>EstimatedTimeAtLocation</INCLUDE>" +
+                                    "<INCLUDE>TimeAtLocation</INCLUDE>" +
+                                    "<INCLUDE>TrackAtLocation</INCLUDE>" +
+                                    "<INCLUDE>FromLocation</INCLUDE>" +
+                                    "<INCLUDE>ToLocation</INCLUDE>" +
+                                    "<INCLUDE>AdvertisedTrainIdent</INCLUDE>" +
+                                    "<INCLUDE>TypeOfTraffic</INCLUDE>" +
+                                    "<INCLUDE>Canceled</INCLUDE>" +
+                                    "<INCLUDE>ProductInformation</INCLUDE>" +
+                                    "<INCLUDE>Deleted</INCLUDE>" +
+                                    "<INCLUDE>Deviation</INCLUDE>" +
+                                "</QUERY>" +
+                                "</REQUEST>";
+            $.ajax({
+                type: "POST",
+                contentType: "text/xml",
+                dataType: "json",
+                data: xmlRequest,
+                success: function (response) {
+                    if (response == null) return;
+                    if (response.RESPONSE.RESULT[0].TrainAnnouncement == null)
+                        jQuery("#timeTableDeparture tr:last").
+                            after("<tr><td colspan='4'>Inga avgångar hittades</td></tr>");
+                    try {
+                        parseTrainAnnouncement(response.RESPONSE.RESULT[0].TrainAnnouncement);
+                    }
+                    catch (ex) { }
+                }
+            });
+            lastRequest = new Date();
+        }
+
+        function update () {
+            if (requestsLeft > 0) {
+                var secondsSinceLastRequest = ((new Date()).getTime()-lastRequest.getTime())/1000;
+                if (secondsSinceLastRequest > 90) {
+                    updateData();
+                    requestsLeft--;
+                }
+                renderTimeline();
+                renderTrains();
+                setTimeout(update, 500);
+            }
+            else {
+                updateStarted = false;
+            }
+        }
+
+        function parseTrainAnnouncement(announcement) {
+            trains = {};
+            $(announcement).each(function (iterator, item) {
+                if (item.Deleted) {
+                    return;
+                }
+
+                var train = {};
+                if (item.AdvertisedTrainIdent in trains) train = trains[item.AdvertisedTrainIdent];
+
+                var advertisedtime = new Date(item.AdvertisedTimeAtLocation);
+                advertisedtime = new Date(advertisedtime.getTime() + (new Date()).getTimezoneOffset()*60*1000);
+                if (item.ActivityType == "Avgang") {
+                    train.scheduledDepature = advertisedtime;
+                    train.actualDepature = advertisedtime;
+                }
+                else if (item.ActivityType == "Ankomst"){
+                    train.scheduledArrival = advertisedtime;
+                    train.actualArrival = advertisedtime;
+                }
+
+                if (!("delayed" in train)) train.delayed = false;
+                if (item.EstimatedTimeAtLocation) {
+                    var estimatedtime = new Date(item.EstimatedTimeAtLocation);
+                    estimatedtime = new Date(estimatedtime.getTime() + (new Date()).getTimezoneOffset()*60*1000);
+                    if (item.ActivityType == "Avgang") {
+                        train.actualDepature = estimatedtime;
+                        train.delayed = true;
+                    }
+                    else if (item.ActivityType == "Ankomst"){
+                        train.actualArrival = estimatedtime;
+                        train.delayed = true;
+                    }
+                }
+
+                if (!train.departed) train.departed = false;
+                if (!train.arrived) train.arrived = false;
+                if (item.TimeAtLocation) {
+                    var time = new Date(item.TimeAtLocation);
+                    time = new Date(time.getTime() + (new Date()).getTimezoneOffset()*60*1000);
+                    if (item.ActivityType == "Avgang") {
+                        train.actualDepature = time;
+                        train.departed = true;
+                    }
+                    else if (item.ActivityType == "Ankomst"){
+                        train.actualArrival = time;
+                        train.arrived = true;
+                    }
+                }
+
+                var toList = new Array();
+                $(item.ToLocation).each(function (iterator, toItem) {
+                    toList.push(Stations[toItem]);
+                });
+                train.toList = toList;
+
+                if (!("canceled" in train)) train.canceled = false;
+                if (item.Canceled == true) {
+                    train.canceled = true;
+                    if (item.ActivityType == "Avgang") {
+                        train.actualDepature = null;
+                    }
+                    else if (item.ActivityType == "Ankomst"){
+                        train.actualArrival = null;
+                    }
+                }
+
+                if (!train.deviation) train.deviation = "";
+                if (item.Deviation) {
+                    if (train.deviation != "") {
+                        train.deviation += ", ";
+                    }
+                    if (item.ActivityType == "Avgang") {
+                        train.deviation += "Avgång: " + item.Deviation; 
+                    }
+                    else if (item.ActivityType == "Ankomst") {
+                        train.deviation += "Ankomst: " + item.Deviation;  
+                    }
+                }
+
+                train.type = item.TypeOfTraffic;
+                train.id = item.AdvertisedTrainIdent;
+                train.product = item.ProductInformation;
+
+                if (!train.track) train.track = item.TrackAtLocation;
+                
+                trains[item.AdvertisedTrainIdent] = train;
+            });
+        }
+
+        function renderTrains() {
+            document.getElementById("trains").innerHTML = "";
+            renderPlatforms();
+            Object.keys(trains).map(function(key){ //loop through values of train dictonary (trains)
+                var train = trains[key]; 
+                if (train.delayed || train.canceled) {
+                    //render scheduled time as shadow
+                    var trainDiv = document.createElement("div");
+                    trainDiv.classList.add("train");
+                    trainDiv.classList.add("advertised");
+                    trainDiv.innerHTML = "<b>" + train.type + " " +train.id + "</b></br>";
+                    var arr = train.scheduledArrival;
+                    var dep = train.scheduledDepature;
+                    if (train.scheduledDepature && !train.scheduledArrival) {
+                        arr = new Date(train.scheduledDepature.getTime() - 3*60*1000) //assume train is at platform 5 before depature;
+                        trainDiv.classList.add("noarrival");
+                    }
+                    else if (train.scheduledArrival && !train.scheduledDepature) {
+                        dep = new Date(train.scheduledArrival.getTime() + 2*60*1000) //assume train leaves platform 3 minutes after arrival;
+                        trainDiv.classList.add("nodeparture");
+                    }
+
+                    trainDiv.style.top = getYFromTime(arr).toString() + "px";
+                    trainDiv.style.height = (getYFromTime(dep)-getYFromTime(arr)).toString() + "px";
+                    if (platforms.indexOf(train.track) >= 0) {
+                        trainDiv.style.left = platforms.indexOf(train.track) * getPlatformWidth() + "%";
+                    }
+                    else {
+                        trainDiv.style.left = "100%";
+                    }
+
+                    if (train.canceled) {
+                        trainDiv.classList.add("canceled");
+                    }
+                    trainDiv.style.width = getPlatformWidth() + "%";
+                    trainDiv.style["z-index"] = 1;
+                    trainDiv.title = getTrainInfo(train);
+                    document.getElementById("trains").appendChild(trainDiv);
+                }
+
+                if (train.actualArrival || train.actualDepature) { //if not both arrival and depature are cancelled
+                    //render actual times
+                    var trainDiv = document.createElement("div");
+                    trainDiv.classList.add("train");
+                    trainDiv.innerHTML = "<b>" + train.type + " " + train.id + "</b></br>" + train.toList[train.toList.length-1];
+                    var arr = train.actualArrival;
+                    var dep = train.actualDepature;
+                    if (train.actualDepature && !train.actualArrival) {
+                        arr = new Date(train.actualDepature.getTime() - 3*60*1000) //assume train is at platform 3 before depature;
+                        trainDiv.classList.add("noarrival");
+                    }
+                    else if (train.actualArrival && !train.actualDepature) {
+                        dep = new Date(train.actualArrival.getTime() + 2*60*1000) //assume train leaves platform 2 minutes after arrival;
+                        trainDiv.classList.add("nodeparture");
+                    }
+                    if (train.arrived) { //if arrival happened, ensure that departure is afterwards
+                        if (dep.getTime()-arr.getTime() < 60*1000) {
+                            dep = new Date(arr.getTime() + 60*1000);
+                        }
+                    }
+
+                    if (dep.getTime() - arr.getTime() < 60*1000) { //assure that arrival is at least one minute before departure
+                        arr = new Date(dep.getTime() - 60*1000);
+                    }
+
+                    if (train.delayed) trainDiv.classList.add("delayed");
+                    if (train.arrived) trainDiv.classList.add("arrived");
+                    if (train.departed) trainDiv.classList.add("departed");
+
+                    trainDiv.style.top = getYFromTime(arr).toString() + "px";
+                    trainDiv.style.height = (getYFromTime(dep)-getYFromTime(arr)).toString() + "px";
+                    if (platforms.indexOf(train.track) >= 0) {
+                        trainDiv.style.left = platforms.indexOf(train.track) * getPlatformWidth() + "%";
+                    }
+                    else {
+                        trainDiv.style.left = "100%";
+                    }
+                    trainDiv.style.width = 0.9*getPlatformWidth() + "%";
+                    trainDiv.style["z-index"] = 2;
+                    trainDiv.title = getTrainInfo(train);
+                    document.getElementById("trains").appendChild(trainDiv);              
+                }
+            });
+
+            var markerDiv = document.createElement("div");
+            markerDiv.classList.add("marker");
+            markerDiv.style.top = getYFromTime(new Date()).toString() + "px";
+            markerDiv.style.width = "100%";
+            document.getElementById("trains").appendChild(markerDiv);
+        }
+
+        function getTrainInfo(train) {
+            var str = "";
+            str += train.product + "\n";
+            str += train.toList.join(", ") + "\n";
+
+            if (train.scheduledArrival) {
+                if (train.actualArrival) {
+                    if (train.arrived) {
+                        str += "Ankom ";
+                    }
+                    else {
+                        str += "Ankommer ";
+                    }
+                    str += formatTime(train.actualArrival);
+                    if (!(train.actualArrival.getTime() == train.scheduledArrival.getTime())) {
+                        var delay = Math.round((train.actualArrival.getTime() - train.scheduledArrival.getTime())/(1000*60));
+                        str += " (" + formatTime(train.scheduledArrival);
+                        if (delay > 0) {
+                            str += "+";
+                        }
+                        str += delay + ")\n";
+                    }
+                    else {
+                        str += "\n";
+                    }
+                }
+                else {
+                    str += "Ankomst inställd (" + formatTime(train.scheduledArrival) + ")\n";
+                }
+            }
+
+            if (train.scheduledDepature) {
+                if (train.actualDepature) {
+                    if (train.departed) {
+                        str += "Avgick ";
+                    }
+                    else {
+                        str += "Avgår ";
+                    }
+                    str += formatTime(train.actualDepature);
+                    if (!(train.actualDepature.getTime() == train.scheduledDepature.getTime())) {
+                        var delay = Math.round((train.actualDepature.getTime() - train.scheduledDepature.getTime())/(1000*60));
+                        str += " (" + formatTime(train.scheduledDepature);
+                        if (delay > 0) {
+                            str += "+";
+                        }
+                        str += delay + ")\n";
+                    }
+                    else {
+                        str += "\n";
+                    }
+                }
+                else {
+                    str += "Avgång inställd (" + formatTime(train.scheduledDepature) + ")\n";
+                }
+            }
+
+            if(train.deviation != "") {
+                str += train.deviation + "\n";
+            }
+
+            return str;
+        }
+
+        function renderTimeline() {
+            document.getElementById("timeline").innerHTML = "";
+        	var startTime = (new Date()).getTime() - 15*60*1000;
+        	var firstLabelTime = startTime - (startTime % (15*60*1000));
+        	for (var i = 0; i < 4*6; i++) {
+        		var time = new Date(firstLabelTime + i*15*60*1000);
+        		var y = getYFromTime(time);
+        		if  (y > 0) {
+        			var label = time.toLocaleTimeString();
+        			var labelDiv = document.createElement("div");
+        			labelDiv.style.position = "absolute";
+        			labelDiv.style.top = y.toString() + "px";
+        			labelDiv.innerHTML = label;
+        			document.getElementById("timeline").appendChild(labelDiv);
+        		}
+        	}
+            var markerDiv = document.createElement("div");
+            markerDiv.classList.add("marker");
+            markerDiv.style.top = getYFromTime(new Date()).toString() + "px";
+            markerDiv.style.width = "100%";
+            document.getElementById("timeline").appendChild(markerDiv);
+        }
+
+        function renderPlatforms() {
+        	for (var i = 0; i < platforms.length; i++) {
+    			var labelDiv = document.createElement("div");
+    			labelDiv.style.position = "absolute";
+    			labelDiv.style.top = "0px";
+    			labelDiv.style.left = i * getPlatformWidth() + "%";
+    			labelDiv.innerHTML = "Spår " + platforms[i];
+    			document.getElementById("trains").appendChild(labelDiv);
+        	};
+            document.getElementById("trains").style["min-width"] = (80*platforms.length) + "px"
+        }
+
+        function getYFromTime(datetime) {
+        	var YNow = 250;
+        	var PixelPerMinute = 15;
+        	var diff = (datetime.getTime()-(new Date()).getTime())/(1000*60);
+        	return Math.round(YNow + PixelPerMinute * diff);
+        }
+
+        function getPlatformWidth() {
+        	return (100/platforms.length);
+        }
+
+        function formatTime(date) {
+            var str = "";
+            if (date.getHours() < 10) {
+                str += "0";
+            }
+            str += date.getHours() + ":";
+            if (date.getMinutes() < 10) {
+                str += "0";
+            }
+            str += date.getMinutes();
+            return str;
+        }
+    </script>
+</head>
+<body>
+    <div>
+        Stationstidslinje för 
+        <input id="station" type="text" />
+        <input type="button" value="Visa" onclick="javascript: Search()" />
+        <span id="loader" style="margin-left: 10px">Laddar data ...</span>
+    </div>
+    <div id="result">
+    	<table width="100%">
+    		<tr>
+    			<td style="width:10%; min-width: 100px"><div id="timeline"></div></td>
+    			<td style="width:90%"><div id="trains"></div></td>
+    		<tr>
+    	<table>
+    </div> 
+</body>
+</html>

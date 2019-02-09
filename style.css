@@ -1,0 +1,57 @@
+body {
+    font-family: sans-serif;
+}
+
+#timeline {
+    position:relative;
+}
+
+#trains {
+    position:relative;
+}
+
+.marker {
+    position: absolute;
+    width: 100%;
+    border-top: 2px solid red;
+    z-index: 3;
+}
+
+.train {
+    position: absolute;
+    background-color: rgb(67, 201, 66);
+    padding: 2px;
+}
+
+.train.noarrival {
+    border-top: 4px dashed white;
+}
+
+.train.nodeparture {
+    border-bottom: 4px dashed white;
+}
+
+.train.advertised {
+    opacity: 0.5;
+    background-color: gray;
+}
+
+.train.canceled {
+    text-decoration: line-through;
+}
+
+.train.delayed {
+    background-color: red;
+}
+
+.train.arrived {
+    border-top: 4px solid green;
+}
+
+.train.departed, .train.arrived.nodeparture {
+    opacity: 0.5;
+}
+
+.train.departed {
+    border-bottom: 4px solid green;
+}
