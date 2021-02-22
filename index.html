@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8" ?>
 
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html xmlns="https://www.w3.org/1999/xhtml">
 <head>
     <title>Stationstidslinje</title>
-    <link rel="stylesheet" href="http://code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css">
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.10.3/themes/smoothness/jquery-ui.css">
     <link rel="stylesheet" href="./dark.css">
 
-    <script src="http://code.jquery.com/jquery-1.9.1.js"></script>
-    <script src="http://code.jquery.com/ui/1.10.3/jquery-ui.js"></script>
+    <script src="https://code.jquery.com/jquery-1.9.1.js"></script>
+    <script src="https://code.jquery.com/ui/1.10.3/jquery-ui.js"></script>
     <script type="text/javascript">
     	var platforms = [];
         var trains = {};
@@ -20,7 +20,7 @@
             $.support.cors = true; // Enable Cross domain requests
             try {
                 $.ajaxSetup({
-                    url: "http://api.trafikinfo.trafikverket.se/v1/data.json",
+                    url: "https://api.trafikinfo.trafikverket.se/v1/data.json",
                     error: function (msg) {
                         if (msg.statusText == "abort") return;
                         alert("Request failed: " + msg.statusText + "\n" + msg.responseText);
