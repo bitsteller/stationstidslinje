@@ -208,9 +208,6 @@
                 var train = {};
                 if (item.AdvertisedTrainIdent in trains) train = trains[item.AdvertisedTrainIdent];
 
-                //var advertisedtime = new Date(item.AdvertisedTimeAtLocation);
-                //advertisedtime = new Date(advertisedtime.getTime() + (new Date()).getTimezoneOffset()*60*1000);
-                
                 var advertisedtime = new Date(Date.parse(item.AdvertisedTimeAtLocation));
 
                 if (item.ActivityType == "Avgang") {
@@ -224,9 +221,6 @@
 
                 if (!("delayed" in train)) train.delayed = false;
                 if (item.EstimatedTimeAtLocation) {
-                    //var estimatedtime = new Date(item.EstimatedTimeAtLocation);
-                    //estimatedtime = new Date(estimatedtime.getTime() + (new Date()).getTimezoneOffset()*60*1000);
-
                     var estimatedtime = new Date(Date.parse(item.EstimatedTimeAtLocation));
 
                     if (item.ActivityType == "Avgang") {
@@ -242,9 +236,6 @@
                 if (!train.departed) train.departed = false;
                 if (!train.arrived) train.arrived = false;
                 if (item.TimeAtLocation) {
-                    //var time = new Date(item.TimeAtLocation);
-                    //time = new Date(time.getTime() + (new Date()).getTimezoneOffset()*60*1000);
-                    
                     time = new Date(Date.parse(item.TimeAtLocation))
 
                     if (item.ActivityType == "Avgang") {
