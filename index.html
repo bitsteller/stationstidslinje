@@ -130,40 +130,37 @@
             $('#timeTableDeparture tr:not(:first)').remove();
 
             // Request to load announcements for a station by its signature
-            var xmlRequest = "<REQUEST version='1.0'>" +
-                                "<LOGIN authenticationkey='dd9f2771eb9b4ddca65caae7140bb6a1' />" +
-                                "<QUERY objecttype='TrainAnnouncement' " +
-                                    "orderby='AdvertisedTimeAtLocation' >" +
-                                    "<FILTER>" +
-                                    "<AND>" +
-                                        "<OR>" +
-                                            "<AND>" +
-                                                "<GT name='AdvertisedTimeAtLocation' " +
-                                                            "value='$dateadd(-00:15:00)' />" +
-                                                "<LT name='AdvertisedTimeAtLocation' " +
-                                                            "value='$dateadd(6:00:00)' />" +
-                                            "</AND>" +
-                                            "<GT name='EstimatedTimeAtLocation' value='$dateadd(-00:15:00)' />" +
-                                        "</OR>" +
-                                        "<EQ name='LocationSignature' value='" + sign + "' />" +
-                                    "</AND>" +
-                                    "</FILTER>" +
-                                    // Just include wanted fields to reduce response size.
-                                    "<INCLUDE>ActivityType</INCLUDE>" +
-                                    "<INCLUDE>AdvertisedTimeAtLocation</INCLUDE>" +
-                                    "<INCLUDE>EstimatedTimeAtLocation</INCLUDE>" +
-                                    "<INCLUDE>TimeAtLocation</INCLUDE>" +
-                                    "<INCLUDE>TrackAtLocation</INCLUDE>" +
-                                    "<INCLUDE>FromLocation</INCLUDE>" +
-                                    "<INCLUDE>ToLocation</INCLUDE>" +
-                                    "<INCLUDE>AdvertisedTrainIdent</INCLUDE>" +
-                                    "<INCLUDE>TypeOfTraffic</INCLUDE>" +
-                                    "<INCLUDE>Canceled</INCLUDE>" +
-                                    "<INCLUDE>ProductInformation</INCLUDE>" +
-                                    "<INCLUDE>Deleted</INCLUDE>" +
-                                    "<INCLUDE>Deviation</INCLUDE>" +
-                                "</QUERY>" +
-                                "</REQUEST>";
+            var xmlRequest = `
+            <REQUEST>
+                <LOGIN authenticationkey='dd9f2771eb9b4ddca65caae7140bb6a1' />
+                <QUERY objecttype='TrainAnnouncement' orderby='AdvertisedTimeAtLocation' schemaversion="1">
+                    <FILTER>
+                        <AND>
+                            <OR>
+                                <AND>
+                                    <GT name='AdvertisedTimeAtLocation' value='$dateadd(-00:15:00)' />
+                                    <LT name='AdvertisedTimeAtLocation' value='$dateadd(6:00:00)' />
+                                </AND>
+                                <GT name='EstimatedTimeAtLocation' value='$dateadd(-00:15:00)' />
+                            </OR>
+                            <EQ name='LocationSignature' value='${sign}' />
+                        </AND>
+                    </FILTER>
+                    <INCLUDE>ActivityType</INCLUDE>
+                    <INCLUDE>AdvertisedTimeAtLocation</INCLUDE>
+                    <INCLUDE>EstimatedTimeAtLocation</INCLUDE>
+                    <INCLUDE>TimeAtLocation</INCLUDE>
+                    <INCLUDE>TrackAtLocation</INCLUDE>
+                    <INCLUDE>FromLocation</INCLUDE>
+                    <INCLUDE>ToLocation</INCLUDE>
+                    <INCLUDE>AdvertisedTrainIdent</INCLUDE>
+                    <INCLUDE>TypeOfTraffic</INCLUDE>
+                    <INCLUDE>Canceled</INCLUDE>
+                    <INCLUDE>ProductInformation</INCLUDE>
+                    <INCLUDE>Deleted</INCLUDE>
+                    <INCLUDE>Deviation</INCLUDE>
+                </QUERY>
+            </REQUEST>`;
             $.ajax({
                 type: "POST",
                 contentType: "text/xml",
