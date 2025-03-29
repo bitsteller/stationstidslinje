@@ -20,7 +20,7 @@
             $.support.cors = true; // Enable Cross domain requests
             try {
                 $.ajaxSetup({
-                    url: "https://api.trafikinfo.trafikverket.se/v1/data.json",
+                    url: "https://api.trafikinfo.trafikverket.se/v2/data.json",
                     error: function (msg) {
                         if (msg.statusText == "abort") return;
                         alert("Request failed: " + msg.statusText + "\n" + msg.responseText);
@@ -45,17 +45,19 @@
 
         function PreloadTrainStations() {
             // Request to load all stations
-            var xmlRequest = "<REQUEST>" +
-                                // Use your valid authenticationkey
-                                "<LOGIN authenticationkey='dd9f2771eb9b4ddca65caae7140bb6a1' />" +
-                                "<QUERY objecttype='TrainStation'>" +
-                                    "<FILTER/>" +
-                                    "<INCLUDE>Prognosticated</INCLUDE>" +
-                                    "<INCLUDE>AdvertisedLocationName</INCLUDE>" +
-                                    "<INCLUDE>LocationSignature</INCLUDE>" +
-                                    "<INCLUDE>PlatformLine</INCLUDE>" +
-                                "</QUERY>" +
-                             "</REQUEST>";
+            var xmlRequest = `
+            <REQUEST>
+                <LOGIN authenticationkey='demokey' />
+                <QUERY objecttype='TrainStation' schemaversion='1.5' namespace="rail.infrastructure">
+                    <FILTER>
+                    <EQ name='Prognosticated' value='True' />
+                    </FILTER>
+                    <INCLUDE>AdvertisedLocationName</INCLUDE>
+                    <INCLUDE>LocationSignature</INCLUDE>
+                    <INCLUDE>PlatformLine</INCLUDE>
+                </QUERY>
+            </REQUEST>
+            `
             $.ajax({
                 type: "POST",
                 contentType: "text/xml",
@@ -70,8 +72,7 @@
                             // Save a key/value list of stations
                             Stations[item.LocationSignature] = item.AdvertisedLocationName;
                             // Create an array to fill the search field autocomplete.
-                            if (item.Prognosticated == true)
-                                stationlist.push({ label: item.AdvertisedLocationName, value: item.LocationSignature, platforms: item.PlatformLine });
+                            stationlist.push({ label: item.AdvertisedLocationName, value: item.LocationSignature, platforms: item.PlatformLine });
                         });
                         fillSearchWidget(stationlist);
                     }
